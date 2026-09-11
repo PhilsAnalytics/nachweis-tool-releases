@@ -1,4 +1,3 @@
-[README_v1.2.md](https://github.com/user-attachments/files/32048504/README_v1.2.md)
 # Nachweis-Tool
 
 Manipulationssicheres Anwesenheitsprotokoll für eCampus-Zeiterfassung —
@@ -41,16 +40,19 @@ Dauer: ca. 30–45 Minuten beim ersten Mal. Kostenlos.
 2. Namen vergeben (z.B. `Zeitnachweis`), Sichtbarkeit **Private**.
 3. Aus dem [aktuellen Release](../../releases/latest) herunterladen und
    hochladen (Add file → Upload files): `nachweis_tool.py`,
-   `kursplan.json`, `should_run.py`, `.gitignore`.
+   `kursplan.json`, `.gitignore`.
    **Achtung:** GitHub zeigt die `.gitignore` im Release als
    `default.gitignore` an (Eigenheit bei Dateien, die nur aus einem Punkt
    plus Namen bestehen) — nach dem Download zurück in `.gitignore`
    umbenennen, bevor du sie hochlädst.
-4. Die Workflow-Datei braucht einen eigenen Unterordner, den "Upload files"
-   nicht automatisch anlegt: **Add file → Create new file**, als Dateiname
-   exakt `.github/workflows/nachweis-log.yml` eintippen (mit den
+4. Drei Workflow-Dateien brauchen einen eigenen Unterordner, den "Upload
+   files" nicht automatisch anlegt: für jede einzeln **Add file → Create
+   new file**, als Dateiname jeweils exakt eintippen (mit den
    Schrägstrichen — GitHub legt die Ordner dabei automatisch an), Inhalt
-   einfügen, committen.
+   einfügen, committen:
+   - `.github/workflows/nachweis-log.yml` — der automatische eCampus-Check
+   - `.github/workflows/verify-log.yml` — manuelle Hash-Chain-Prüfung
+   - `.github/workflows/nachweis-toggle.yml` — die echte Kommen/Gehen-Buchung
 5. Passe `kursplan.json` an deinen eigenen Kursplan an (Kursnummern, Titel,
    Zeiträume aus deinem eCampus-Kursplan).
 
@@ -70,8 +72,9 @@ Dauer: ca. 30–45 Minuten beim ersten Mal. Kostenlos.
 4. Repository access: **"Only select repositories"** → dein Repo aus
    Phase 1 (die Daten, NICHT das Backend-Repo) auswählen.
 5. Permissions → Contents: **"Read and write"**.
-6. Optional, nur falls du später den "Jetzt prüfen"-Button nutzen willst:
-   zusätzlich Actions: **"Read and write"**.
+6. Zusätzlich Actions: **"Read and write"** — wird für den "Jetzt prüfen"-
+   und den "Kommen/Gehen"-Button gebraucht, die beide einen Workflow per
+   API anstoßen.
 7. **Generate token**, Wert sofort kopieren und sicher speichern (Passwort-
    Manager) — wird nur einmal angezeigt.
 
@@ -112,6 +115,24 @@ repository secret**, insgesamt fünf Stück:
    einem neuen Eintrag im Repo auftauchen (committet vom Backend, nicht von
    der Action selbst).
 
+### Phase 6b — Automatischen Zeitplan einrichten
+
+**Wichtig:** Dieser Workflow läuft absichtlich NICHT über GitHubs eigenen
+`schedule`-Trigger — der garantiert keine pünktliche Ausführung und kann bei
+hoher globaler Last um Stunden verzögert sein. Stattdessen stößt ein
+kostenloser externer Dienst den Workflow zuverlässig per API an:
+
+1. Auf **cron-job.org** registrieren (kostenlos).
+2. Neuen Cronjob anlegen:
+   - URL: `https://dein-service-name.onrender.com/trigger-check`
+   - Methode: `POST`
+   - Custom Header: `X-API-Key: <dein NACHWEIS_API_KEY>`
+   - Zeitplan: stündlich, Mo–Fr, im gewünschten Zeitfenster (z.B. 08:30–19:30),
+     Zeitzone direkt auf Europe/Berlin stellen — kein Umrechnen auf UTC nötig.
+3. Speichern. Ab jetzt läuft der Check zuverlässig zur gewünschten Zeit,
+   weil die Anfrage technisch wie ein manueller "Run workflow"-Klick
+   behandelt wird, nicht wie ein geplanter GitHub-Workflow.
+
 ### Phase 7 — App bzw. Weboberfläche verbinden
 
 - **Desktop-App**: `nachweis_app.py` starten. Bei fehlender Konfiguration
@@ -129,3 +150,12 @@ funktionieren, da alle dieselbe Plattform nutzen. Falls dein Login-Ablauf
 abweicht: `pip install playwright`, `python -m playwright install chromium`,
 dann `python -m playwright codegen <deine-eCampus-URL>` — zeigt live die
 passenden Selektoren für deinen Login-Flow an.
+
+### Optional — Backend wach halten
+
+Render legt kostenlose Services nach ca. 15 Minuten Inaktivität schlafen;
+der nächste Aufruf danach braucht ein paar Sekunden länger (Kaltstart).
+Kostenlose Abhilfe: bei **uptimerobot.com** registrieren, neuen HTTP(s)-
+Monitor auf `https://dein-service-name.onrender.com/health` mit 5-Minuten-
+Intervall anlegen. Nicht nötig für die Grundfunktion, macht "Jetzt prüfen"
+aber spürbar schneller.
